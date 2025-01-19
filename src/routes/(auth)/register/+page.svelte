@@ -1,15 +1,11 @@
-<!-- register/+page.svelte-->
 <script lang="ts">
   import type { ActionData } from "./$types";
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import { fade, fly } from 'svelte/transition';
   import { UserPlus, Shield, Lock, Star } from 'lucide-svelte';
-  import { Eye, EyeOff } from 'lucide-svelte';
 
   export let form: ActionData;
-  let showPassword = false;
-  let showConfirmPassword = false;
   let mounted = false;
 
   const floatingIcons = [
@@ -95,72 +91,20 @@
         </label>
       </div>
 
-       <div class="wave-group">
-    <input 
-      required 
-      type="email" 
-      name="email"
-      class="input"
-    >
-    <span class="bar"></span>
-    <label class="label">
-      {#each "Email".split('') as char, i}
-        <span class="label-char" style="--index: {i}">{char}</span>
-      {/each}
-    </label>
-  </div>
-
-      <div class="wave-group relative">
-    <input 
-      required 
-      type={showPassword ? "text" : "password"}
-      name="password"
-      class="input pr-10"
-    >
-    <button 
-      type="button"
-      class="absolute right-2 top-3 text-gray-500 hover:text-gray-700"
-      on:click={() => showPassword = !showPassword}
-    >
-      {#if showPassword}
-        <EyeOff size={20} />
-      {:else}
-        <Eye size={20} />
-      {/if}
-    </button>
-    <span class="bar"></span>
-    <label class="label">
-      {#each "Password".split('') as char, i}
-        <span class="label-char" style="--index: {i}">{char}</span>
-      {/each}
-    </label>
-  </div>
-
-  <div class="wave-group relative">
-    <input 
-      required 
-      type={showConfirmPassword ? "text" : "password"}
-      name="confirmPassword"
-      class="input pr-10"
-    >
-    <button 
-      type="button"
-      class="absolute right-2 top-3 text-gray-500 hover:text-gray-700"
-      on:click={() => showConfirmPassword = !showConfirmPassword}
-    >
-      {#if showConfirmPassword}
-        <EyeOff size={20} />
-      {:else}
-        <Eye size={20} />
-      {/if}
-    </button>
-    <span class="bar"></span>
-    <label class="label">
-      {#each "Confirm Password".split('') as char, i}
-        <span class="label-char" style="--index: {i}">{char}</span>
-      {/each}
-    </label>
-  </div>
+      <div class="wave-group">
+        <input 
+          required 
+          type="password" 
+          name="password"
+          class="input"
+        >
+        <span class="bar"></span>
+        <label class="label">
+          {#each "Password".split('') as char, i}
+            <span class="label-char" style="--index: {i}">{char}</span>
+          {/each}
+        </label>
+      </div>
 
       {#if form?.user}
         <p class="text-red-500 text-sm text-center" in:fade>
@@ -186,9 +130,6 @@
 </div>
 
 <style lang="postcss">
-    .wave-group .input.pr-10 {
-    padding-right: 2.5rem;
-  }
   .wave-group {
     position: relative;
     width: 100%;

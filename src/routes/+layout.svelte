@@ -4,6 +4,10 @@
   import Sidebar from '$lib/components/Sidebar.svelte';
   import Footer from '$lib/components/Footer.svelte';
   import Loader from '$lib/components/Load.svelte';
+  import Header2 from '$lib/components/Header2.svelte';
+  import '../app.css';
+  import Sidebar2 from '$lib/components/Sidebar2.svelte';
+  import Footer2 from '$lib/components/Footer2.svelte';
   import { page } from '$app/stores';
   import { navigating } from '$app/stores';
   import '../app.css';
@@ -15,6 +19,7 @@
   <title>VC Tech - Sales</title>
 </svelte:head>
 
+{#if !$page.data.user}
 <div class="min-h-screen bg-gray-100">
   <Header />
   <Sidebar bind:isMinimized />
@@ -27,9 +32,26 @@
   
   <Footer />
 </div>
+{/if}
 
 {#if $navigating}
   <Loader />
+{/if}
+
+{#if $page.data.user}
+<div class="flex h-screen bg-gray-50">
+        <Sidebar2 />
+  <div class="flex flex-col flex-1 overflow-hidden">
+    
+        <Header2 />
+    <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-4">
+      <slot />
+    </main>
+    
+    <Footer2 />
+    
+  </div>
+</div>
 {/if}
 
 <style lang="postcss">
