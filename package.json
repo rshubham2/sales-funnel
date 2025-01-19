@@ -214,6 +214,7 @@
 		"supports-color": "^7.2.0",
 		"supports-preserve-symlinks-flag": "^1.0.0",
 		"svelte-eslint-parser": "^0.43.0",
+		"sweetalert2": "^11.15.10",
 		"swiper": "^11.2.1",
 		"thenify": "^3.3.1",
 		"thenify-all": "^1.6.0",

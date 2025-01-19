@@ -11,6 +11,10 @@
   let isMinimized = false;
 </script>
 
+<svelte:head>
+  <title>VC Tech - Sales</title>
+</svelte:head>
+
 <div class="min-h-screen bg-gray-100">
   <Header />
   <Sidebar bind:isMinimized />
