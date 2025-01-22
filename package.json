@@ -44,6 +44,8 @@
 	"main": "eslint.config.js",
 	"dependencies": {
 		"@prisma/client": "^6.2.1",
+		"@svelteuidev/composables": "^0.15.7",
+		"@svelteuidev/core": "^0.15.7",
 		"acorn": "^8.14.0",
 		"acorn-jsx": "^5.3.2",
 		"acorn-typescript": "^1.4.13",
@@ -231,6 +233,7 @@
 		"word-wrap": "^1.2.5",
 		"wrap-ansi": "^8.1.0",
 		"wrap-ansi-cjs": "^7.0.0",
+		"xlsx": "^0.18.5",
 		"yaml": "^1.10.2",
 		"yocto-queue": "^0.1.0",
 		"zimmerframe": "^1.1.2"
