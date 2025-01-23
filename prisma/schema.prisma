@@ -24,3 +24,116 @@ model Roles {
   User User[]
 }
 
+enum YesNo {
+  yes
+  no
+}
+
+model Organization {
+  organizationId   String        @id @default(auto()) @map("_id") @db.ObjectId
+  name             String
+  address          String
+  contacts         Contacts[]
+  leads            Leads[]
+  qualification    Qualification[]
+  presentation     Presentation[]
+  POC              POC[]
+  proposal         Proposal[]
+  negotiation      Negotiation[]
+  order            Order[]
+}
+
+model Contacts {
+  id         String          @id @map("_id") @db.ObjectId
+  name       String
+  designation String
+  mobile     String
+  department String
+  email      String
+  organization Organization @relation(fields: [id], references: [organizationId])
+}
+
+model Leads {
+  id                        String   @id  @map("_id")  @db.ObjectId
+  vertical                  String   
+  totalLocations            Int    
+  businessExpectationsCount Float     
+  businessExpectationsValue Float  
+  businessExpectationsMRR   Float  
+  category                  String   
+  organization Organization @relation(fields: [id], references: [organizationId])
+}
+
+model Qualification {
+  id                       String   @id  @map("_id")  @db.ObjectId
+  isQualified              YesNo
+  customerPain             String
+  authority                String   
+  consequence              String
+  isTargetProfile          YesNo
+  targetProfileReason      String?
+  isTimingCorrect          YesNo
+  timingReason             String?
+  agreedForPresentation    YesNo
+  qualificationDate        DateTime
+  remark                   String
+  followupDate             DateTime
+  organization Organization @relation(fields: [id], references: [organizationId])
+}
+
+model Presentation {
+  id                       String   @id  @map("_id")  @db.ObjectId
+  presentationDate         DateTime?
+  isQualified              YesNo
+  decisionMakerInvolved    YesNo
+  formalProposalRequested  YesNo
+  budgetApproved           YesNo
+  caseClosureTimeFrame     String
+  presentation             String?   
+  remark                   String?
+  followUp                 Json
+  isPOC                    YesNo
+  organization Organization @relation(fields: [id], references: [organizationId])
+}
+
+model POC{
+  id                       String   @id  @map("_id")  @db.ObjectId
+  totalSites               Int
+  productDetail           String
+  POCDuration             String
+  POCType                 String
+  businessSites           Int
+  businessValue           Float    // Monthly Recurring Revenue (MRR)
+  MRR                     Float
+  hardwareSites            Int
+  avgHardwareValue       Float
+  hardwareValue          Float
+  POCStatus              String?
+  followUp                 Json?
+  organization Organization @relation(fields: [id], references: [organizationId])
+}
+
+model Proposal{
+  id                      String   @id  @map("_id")  @db.ObjectId
+  submissionDate          DateTime
+  value                   Float
+  organization Organization @relation(fields: [id], references: [organizationId])
+}
+
+model Negotiation{
+  id                      String   @id  @map("_id")  @db.ObjectId
+  followUp                 Json
+  organization Organization @relation(fields: [id], references: [organizationId])
+}
+
+model Order {
+  id                   String   @id  @map("_id")  @db.ObjectId
+  projectStatus        String   
+  finalOrderValue      Float?   
+  finalBusinessValue   String? 
+  totalHardwareSites   Int?     
+  avgHardwareValue     Float?  
+  totalHardwareValue   Float?  
+  lossReason           String? 
+  organization Organization @relation(fields: [id], references: [organizationId])  
+}
