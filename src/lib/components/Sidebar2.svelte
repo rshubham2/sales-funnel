@@ -1,6 +1,7 @@
+<!-- src/lib/components/Sidebar.svelte -->
 <script lang="ts">
   import { page } from '$app/stores';
-  import { User, ChevronLeft, ChevronRight, LogOut, ChevronDown } from 'lucide-svelte';
+  import { User, ChevronLeft, ChevronRight, LogOut, ChevronDown, BarChart2 } from 'lucide-svelte';
   import { applyAction, enhance } from '$app/forms';
   import { invalidateAll } from '$app/navigation';
   import { writable } from 'svelte/store';
@@ -19,7 +20,14 @@
         { label: 'Dashboard', href: '/admin' },
         { label: 'Users', href: '/admin/users' },
         { label: 'Import Data', href: '/admin/import' },
-        { label: 'Settings', href: '/admin/settings' }
+      ]
+    },
+    {
+      label: 'Sales',
+      icon: BarChart2,
+      requiresAdmin: false,
+      items: [
+        { label: 'Organizations', href: '/sales/organizations' },
       ]
     }
   ];
@@ -95,11 +103,13 @@
 
       {#if $page.data.user}
         <form action="/logout" method="POST" use:enhance={() => {
-          return async ({result}) => {
-            invalidateAll();
-            await applyAction(result);
-          }
-        }}>
+            isLoading.set(true);
+            return async ({result}) => {
+              await invalidateAll();
+              await applyAction(result);
+              isLoading.set(false);
+            }
+          }}>
           <button type="submit" class="w-full flex items-center p-2 rounded-md hover:bg-sky-800">
             <LogOut size={20} />
             {#if !isMinimized}

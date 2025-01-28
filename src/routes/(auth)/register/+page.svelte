@@ -3,7 +3,7 @@
   import { enhance } from '$app/forms';
   import { onMount } from 'svelte';
   import { fade, fly } from 'svelte/transition';
-  import { UserPlus, Shield, Lock, Star } from 'lucide-svelte';
+  import { UserPlus, Shield, Lock, Star, Mail } from 'lucide-svelte';
 
   export let form: ActionData;
   let mounted = false;
@@ -12,7 +12,8 @@
     { icon: Shield, color: 'text-emerald-400/40', size: 24 },
     { icon: Star, color: 'text-yellow-400/40', size: 28 },
     { icon: Lock, color: 'text-rose-400/40', size: 24 },
-    { icon: UserPlus, color: 'text-blue-400/40', size: 26 }
+    { icon: UserPlus, color: 'text-blue-400/40', size: 26 },
+    { icon: Mail, color: 'text-indigo-400/40', size: 24 }
   ];
 
   onMount(() => {
@@ -94,6 +95,21 @@
       <div class="wave-group">
         <input 
           required 
+          type="email" 
+          name="email"
+          class="input"
+        >
+        <span class="bar"></span>
+        <label class="label">
+          {#each "Email".split('') as char, i}
+            <span class="label-char" style="--index: {i}">{char}</span>
+          {/each}
+        </label>
+      </div>
+
+      <div class="wave-group">
+        <input 
+          required 
           type="password" 
           name="password"
           class="input"
@@ -106,11 +122,24 @@
         </label>
       </div>
 
-      {#if form?.user}
-        <p class="text-red-500 text-sm text-center" in:fade>
-          Username already exists. Please choose another.
+      {#if form?.message && !form?.redirect}
+        <p 
+          class="text-red-500 text-sm text-center" 
+          in:fade
+        >
+          {form.message}
         </p>
       {/if}
+      {#if form?.redirect}
+  <p class="text-green-500 text-sm text-center" in:fade>
+    {form.message}
+  </p>
+      <script>
+        // Optional: Programmatic navigation
+        import { goto } from '$app/navigation';
+        goto(form.redirect);
+      </script>
+    {/if}
 
       <button 
         type="submit"
@@ -130,6 +159,100 @@
 </div>
 
 <style lang="postcss">
+  .wave-group {
+    position: relative;
+    width: 100%;
+  }
+  .wave-group .input {
+    font-size: 16px;
+    padding: 10px 10px 10px 5px;
+    display: block;
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid rgba(75, 85, 99, 0.2);
+    background: transparent;
+  }
+  .wave-group .input:focus {
+    outline: none;
+  }
+  .wave-group .label {
+    color: #999;
+    font-size: 18px;
+    font-weight: normal;
+    position: absolute;
+    pointer-events: none;
+    left: 5px;
+    top: 10px;
+    display: flex;
+  }
+  .wave-group .label-char {
+    transition: 0.2s ease all;
+    transition-delay: calc(var(--index) * .05s);
+  }
+  .wave-group .input:focus ~ label .label-char,
+  .wave-group .input:valid ~ label .label-char {
+    transform: translateY(-20px);
+    font-size: 14px;
+    color: #10B981;
+  }
+  .wave-group .bar {
+    position: relative;
+    display: block;
+    width: 100%;
+  }
+  .wave-group .bar:before,
+  .wave-group .bar:after {
+    content: '';
+    height: 2px;
+    width: 0;
+    bottom: 1px;
+    position: absolute;
+    background: #10B981;
+    transition: 0.2s ease all;
+  }
+  .wave-group .bar:before {
+    left: 50%;
+  }
+  .wave-group .bar:after {
+    right: 50%;
+  }
+  .wave-group .input:focus ~ .bar:before,
+  .wave-group .input:focus ~ .bar:after {
+    width: 50%;
+  }
+
+  @keyframes float-1 {
+    0%, 100% { transform: translate(-15vw, -15vh) rotate(0deg); }
+    50% { transform: translate(-13vw, -13vh) rotate(10deg); }
+  }
+
+  @keyframes float-2 {
+    0%, 100% { transform: translate(15vw, -15vh) rotate(0deg); }
+    50% { transform: translate(13vw, -13vh) rotate(-10deg); }
+  }
+
+  @keyframes float-3 {
+    0%, 100% { transform: translate(-15vw, 15vh) rotate(0deg); }
+    50% { transform: translate(-13vw, 13vh) rotate(15deg); }
+  }
+
+  @keyframes float-4 {
+    0%, 100% { transform: translate(15vw, 15vh) rotate(0deg); }
+    50% { transform: translate(13vw, 13vh) rotate(-15deg); }
+  }
+
+  .animate-float-1 { animation: float-1 6s ease-in-out infinite; animation-delay: var(--float-offset); }
+  .animate-float-2 { animation: float-2 7s ease-in-out infinite; animation-delay: var(--float-offset); }
+  .animate-float-3 { animation: float-3 8s ease-in-out infinite; animation-delay: var(--float-offset); }
+  .animate-float-4 { animation: float-4 9s ease-in-out infinite; animation-delay: var(--float-offset); }
+
+  :global(#particles-js) {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+  }
+  /* Copy-pasted from the original file */
   .wave-group {
     position: relative;
     width: 100%;

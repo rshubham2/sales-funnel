@@ -10,12 +10,21 @@ datasource db {
 model User {
   id            String @id @default(auto()) @map("_id") @db.ObjectId
   username      String @unique
+  email         String    @unique
   passwordHash  String
-  userAuthToken String @unique
+  userAuthToken String   @unique
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   role          Roles    @relation(fields: [roleId], references: [id])
   roleId        Int
+  status        UserStatus @default(ACTIVE)
+  assignedOrganizations Organization[] // Many-to-many relationship
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
 }
 
 model Roles {
@@ -33,7 +42,12 @@ model Organization {
   organizationId   String        @id @default(auto()) @map("_id") @db.ObjectId
   name             String
   address          String
+  website          String
   contacts         Contacts[]
+  assignedTo       User?   @relation(fields: [assignedToId], references: [id])
+  assignedToId     String? @db.ObjectId
+  salesStage       SalesStage @default(PROSPECT)
+  priority         Priority @default(MEDIUM)
   leads            Leads[]
   qualification    Qualification[]
   presentation     Presentation[]
@@ -41,6 +55,25 @@ model Organization {
   proposal         Proposal[]
   negotiation      Negotiation[]
   order            Order[]
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum SalesFunnelStage {
+  PROSPECT
+  LEAD
+  QUALIFICATION
+  PRESENTATION
+  POC
+  PROPOSAL
+  NEGOTIATION
+  ORDER
+  CLOSED_WON
+  CLOSED_LOST
 }
 
 model Contacts {
@@ -51,6 +84,19 @@ model Contacts {
   department String
   email      String
   organization Organization @relation(fields: [id], references: [organizationId])
+}
+
+enum SalesStage {
+  PROSPECT
+  LEAD
+  QUALIFICATION
+  PRESENTATION
+  POC
+  PROPOSAL
+  NEGOTIATION
+  ORDER
+  CLOSED_WON
+  CLOSED_LOST
 }
 
 model Leads {

@@ -8,10 +8,18 @@ declare global {
 				}
 		// interface Error {}
 		  interface Locals {
-			user: {
+			  user: {
+				id: string
 				username: string
 				role: string
-			}
+				email: string
+				status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+				assignedOrganizations: {
+					organizationId: string;
+					name: string;
+					salesStage: string;
+					}[];
+				} | null;
 		}
 		// interface PageData {}
 		// interface PageState {}

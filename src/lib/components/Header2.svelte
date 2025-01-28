@@ -40,7 +40,7 @@
     <div class="flex justify-between h-14">
       <div class="flex items-center space-x-4">
         <button 
-          on:click={() => navigateTo('/')}
+          on:click={() => navigateTo('/dashboard')}
           class="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-gray-200 transition-colors"
         >
           <Home class="h-5 w-5 text-gray-600" />

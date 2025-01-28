@@ -34,7 +34,7 @@
 </div>
 {/if}
 
-{#if $navigating}
+{#if $navigating && $page.data.user}
   <Loader />
 {/if}
 

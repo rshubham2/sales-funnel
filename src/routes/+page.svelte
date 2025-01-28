@@ -1,6 +1,6 @@
 <!-- src/routes/+page.svelte -->
 <script lang="ts">
-import { onNavigate } from '$app/navigation';
+import { onNavigate, goto } from '$app/navigation';
   import { 
     Target, 
     Users, 
@@ -74,6 +74,10 @@ const shapes = [
     { component: Triangle, class: 'bottom-20 left-1/4', size: 50, opacity: 0.1, delay: 400 },
     { component: Circle, class: 'bottom-40 right-1/4', size: 70, opacity: 0.08, delay: 600 },
   ];
+
+  function navigateTo(path: string) {
+    goto(path);
+  }
 </script>
 
 <svelte:window bind:scrollY={y}/>
@@ -119,13 +123,15 @@ const shapes = [
           <div class="flex gap-4 justify-center">
             <button 
               class="group relative px-8 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl"
-            >
+              on:click={() => navigateTo('/login')}            
+              >
               Get Started
               <div class="absolute inset-0 bg-white rounded-xl opacity-25 scale-0 group-hover:scale-100 transition-transform duration-300"></div>
             </button>
             <button 
               class="group relative px-8 py-4 bg-white text-blue-600 border-2 border-blue-200 rounded-xl hover:border-blue-300 transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl"
-            >
+              on:click={() => window.open('https://vctechnosolutions.com/')}
+              >
               Learn More
             </button>
           </div>
@@ -220,7 +226,9 @@ const shapes = [
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center">
         <h2 class="text-4xl font-bold text-gray-900 mb-8">Ready to Elevate Your Sales Performance?</h2>
-        <button class="px-8 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transform hover:scale-105 transition-all duration-300">
+        <button 
+        on:click={() => navigateTo('/login')}
+        class="px-8 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transform hover:scale-105 transition-all duration-300">
           Start Your Journey
         </button>
       </div>

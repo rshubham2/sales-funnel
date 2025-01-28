@@ -68,6 +68,7 @@
 		"camelcase-css": "^2.0.1",
 		"caniuse-lite": "^1.0.30001692",
 		"chalk": "^4.1.2",
+		"chart.js": "^4.4.7",
 		"chokidar": "^4.0.3",
 		"clsx": "^2.1.1",
 		"color-convert": "^2.0.1",
@@ -77,6 +78,7 @@
 		"cookie": "^0.6.0",
 		"cross-spawn": "^7.0.6",
 		"cssesc": "^3.0.0",
+		"date-fns": "^4.1.0",
 		"debug": "^4.4.0",
 		"deep-is": "^0.1.4",
 		"deepmerge": "^4.3.1",
@@ -228,6 +230,7 @@
 		"update-browserslist-db": "^1.1.2",
 		"uri-js": "^4.4.1",
 		"util-deprecate": "^1.0.2",
+		"validator": "^13.12.0",
 		"vitefu": "^1.0.5",
 		"which": "^2.0.2",
 		"word-wrap": "^1.2.5",
@@ -236,7 +239,8 @@
 		"xlsx": "^0.18.5",
 		"yaml": "^1.10.2",
 		"yocto-queue": "^0.1.0",
-		"zimmerframe": "^1.1.2"
+		"zimmerframe": "^1.1.2",
+		"zod": "^3.24.1"
 	},
 	"prisma": {
 		"seed": "ts-node prisma/seed.ts"

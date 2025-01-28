@@ -8,7 +8,7 @@ import { db } from '$lib/database'
 export const load: PageServerLoad = async ({ locals }) => {
   // redirect user if logged in
   if (locals.user) {
-    redirect(302, '/')
+    redirect(302, '/dashboard')
   }
 }
 
@@ -59,7 +59,7 @@ const login: Action = async ({ cookies, request }) => {
   })
 
   // redirect the user
-  throw redirect(302, '/')
+  throw redirect(302, '/dashboard')
 }
 
 export const actions: Actions = { login }
