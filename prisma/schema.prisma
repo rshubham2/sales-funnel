@@ -8,16 +8,16 @@ datasource db {
 }
 
 model User {
-  id            String @id @default(auto()) @map("_id") @db.ObjectId
-  username      String @unique
-  email         String    @unique
-  passwordHash  String
-  userAuthToken String   @unique
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  role          Roles    @relation(fields: [roleId], references: [id])
-  roleId        Int
-  status        UserStatus @default(ACTIVE)
+  id                    String         @id @default(auto()) @map("_id") @db.ObjectId
+  username              String         @unique
+  email                 String         @unique
+  passwordHash          String
+  userAuthToken         String         @unique
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  role                  Roles          @relation(fields: [roleId], references: [id])
+  roleId                Int
+  status                UserStatus     @default(ACTIVE)
   assignedOrganizations Organization[] // Many-to-many relationship
 }
 
@@ -39,22 +39,27 @@ enum YesNo {
 }
 
 model Organization {
-  organizationId   String        @id @default(auto()) @map("_id") @db.ObjectId
-  name             String
-  address          String
-  website          String
-  contacts         Contacts[]
-  assignedTo       User?   @relation(fields: [assignedToId], references: [id])
-  assignedToId     String? @db.ObjectId
-  salesStage       SalesStage @default(PROSPECT)
-  priority         Priority @default(MEDIUM)
-  leads            Leads[]
-  qualification    Qualification[]
-  presentation     Presentation[]
-  POC              POC[]
-  proposal         Proposal[]
-  negotiation      Negotiation[]
-  order            Order[]
+  organizationId String          @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  address        String
+  website        String
+  contacts       Contacts[]
+  assignedTo     User?           @relation(fields: [assignedToId], references: [id])
+  assignedToId   String?         @db.ObjectId
+  salesStage     SalesStage      @default(PROSPECT)
+  priority       Priority        @default(MEDIUM)
+  lastContactDate    DateTime?
+  nextFollowUpDate   DateTime?
+  lastActivityNote   String?
+  lastActivityType   String?
+  tags              String[] 
+  leads          Leads[]
+  qualification  Qualification[]
+  presentation   Presentation[]
+  POC            POC[]
+  proposal       Proposal[]
+  negotiation    Negotiation[]
+  order          Order[]
 }
 
 enum Priority {
@@ -77,12 +82,12 @@ enum SalesFunnelStage {
 }
 
 model Contacts {
-  id         String          @id @map("_id") @db.ObjectId
-  name       String
-  designation String
-  mobile     String
-  department String
-  email      String
+  id           String       @id @map("_id") @db.ObjectId
+  name         String
+  designation  String
+  mobile       String
+  department   String
+  email        String
   organization Organization @relation(fields: [id], references: [organizationId])
 }
 
@@ -100,86 +105,179 @@ enum SalesStage {
 }
 
 model Leads {
-  id                        String   @id  @map("_id")  @db.ObjectId
-  vertical                  String   
-  totalLocations            Int    
-  businessExpectationsCount Float     
-  businessExpectationsValue Float  
-  businessExpectationsMRR   Float  
-  category                  String   
-  organization Organization @relation(fields: [id], references: [organizationId])
+  id                        String       @id @map("_id") @db.ObjectId
+  vertical                  String
+  totalLocations            Int
+  businessExpectationsCount Float
+  businessExpectationsValue Float
+  businessExpectationsMRR   Float
+  category                  String
+  organization              Organization @relation(fields: [id], references: [organizationId])
 }
 
 model Qualification {
-  id                       String   @id  @map("_id")  @db.ObjectId
-  isQualified              YesNo
-  customerPain             String
-  authority                String   
-  consequence              String
-  isTargetProfile          YesNo
-  targetProfileReason      String?
-  isTimingCorrect          YesNo
-  timingReason             String?
-  agreedForPresentation    YesNo
-  qualificationDate        DateTime
-  remark                   String
-  followupDate             DateTime
-  organization Organization @relation(fields: [id], references: [organizationId])
+  id                    String           @id @map("_id") @db.ObjectId
+  isQualified           YesNo
+  customerPain          String
+  authority             String
+  consequence           String
+  isTargetProfile       YesNo
+  targetProfileReason   String?
+  isTimingCorrect       YesNo
+  timingReason         String?
+  agreedForPresentation YesNo
+  qualificationDate     DateTime
+  stageEntryDate       DateTime         @default(now())
+  status               QualificationStatus @default(IN_PROGRESS)
+  dropReason           String?
+  followups            QualificationFollowup[]
+  organization         Organization     @relation(fields: [id], references: [organizationId])
+}
+
+enum QualificationStatus {
+  IN_PROGRESS
+  MOVED_TO_NEXT
+  DROPPED
+  HOLD
+}
+
+model QualificationFollowup {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  qualificationId String       @db.ObjectId
+  remark          String
+  followupDate    DateTime
+  qualification   Qualification @relation(fields: [qualificationId], references: [id])
 }
 
 model Presentation {
-  id                       String   @id  @map("_id")  @db.ObjectId
-  presentationDate         DateTime?
-  isQualified              YesNo
-  decisionMakerInvolved    YesNo
-  formalProposalRequested  YesNo
-  budgetApproved           YesNo
-  caseClosureTimeFrame     String
-  presentation             String?   
-  remark                   String?
-  followUp                 Json
-  isPOC                    YesNo
-  organization Organization @relation(fields: [id], references: [organizationId])
+  id                      String              @id @map("_id") @db.ObjectId
+  presentationDate        DateTime?
+  stageEntryDate       DateTime         @default(now())
+  isQualified            YesNo
+  decisionMakerInvolved  YesNo
+  formalProposalRequested YesNo
+  budgetApproved         YesNo
+  caseClosureTimeFrame   String
+  isPOC                  YesNo
+  status                 PresentationStatus   @default(IN_PROGRESS)
+  dropReason             String?
+  followups              PresentationFollowup[]
+  files                  PresentationFile[]
+  organization           Organization        @relation(fields: [id], references: [organizationId])
 }
 
-model POC{
-  id                       String   @id  @map("_id")  @db.ObjectId
-  totalSites               Int
-  productDetail           String
-  POCDuration             String
-  POCType                 String
-  businessSites           Int
-  businessValue           Float    // Monthly Recurring Revenue (MRR)
-  MRR                     Float
-  hardwareSites            Int
-  avgHardwareValue       Float
-  hardwareValue          Float
-  POCStatus              String?
-  followUp                 Json?
-  organization Organization @relation(fields: [id], references: [organizationId])
+enum PresentationStatus {
+  IN_PROGRESS
+  MOVED_TO_NEXT
+  DROPPED
+  HOLD
 }
 
-model Proposal{
-  id                      String   @id  @map("_id")  @db.ObjectId
-  submissionDate          DateTime
-  value                   Float
-  organization Organization @relation(fields: [id], references: [organizationId])
+model PresentationFollowup {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  presentationId  String       @db.ObjectId
+  remark          String
+  followupDate    DateTime
+  presentation    Presentation @relation(fields: [presentationId], references: [id])
 }
 
-model Negotiation{
-  id                      String   @id  @map("_id")  @db.ObjectId
-  followUp                 Json
-  organization Organization @relation(fields: [id], references: [organizationId])
+model PresentationFile {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  presentationId  String       @db.ObjectId
+  fileName        String
+  fileUrl         String
+  fileType        String
+  uploadedAt      DateTime     @default(now())
+  presentation    Presentation @relation(fields: [presentationId], references: [id])
+}
+
+model POC {
+  id               String       @id @map("_id") @db.ObjectId
+  stageEntryDate   DateTime    @default(now())  // When moved to this stage
+  totalSites       Int
+  productDetail    String
+  POCDuration      String
+  POCType          String
+  businessSites    Int
+  businessValue    Float
+  MRR              Float
+  hardwareSites    Int
+  avgHardwareValue Float
+  hardwareValue    Float
+  POCStatus        POCStageStatus @default(IN_PROGRESS)
+  dropReason       String?
+  lossReason       String?
+  followups        POCFollowup[]
+  organization     Organization @relation(fields: [id], references: [organizationId])
+}
+
+enum POCStageStatus {
+  IN_PROGRESS
+  MOVED_TO_NEXT
+  DROPPED
+  HOLD
+}
+
+model POCFollowup {
+  id          String   @id @map("_id") @db.ObjectId
+  pocId       String   @db.ObjectId
+  remark      String
+  followupDate DateTime
+  poc         POC      @relation(fields: [pocId], references: [id])
+}
+
+model Proposal {
+  id               String          @id @map("_id") @db.ObjectId
+  stageEntryDate   DateTime       @default(now())  // When moved to this stage
+  submissionDate   DateTime
+  value            Float
+  status           ProposalStatus  @default(IN_PROGRESS)
+  dropReason       String?
+  lossReason       String?
+  organization     Organization    @relation(fields: [id], references: [organizationId])
+}
+
+enum ProposalStatus {
+  IN_PROGRESS
+  MOVED_TO_NEXT
+  DROPPED
+  HOLD
+}
+
+model Negotiation {
+  id               String              @id @map("_id") @db.ObjectId
+  stageEntryDate   DateTime           @default(now())  // When moved to this stage
+  status           NegotiationStatus   @default(IN_PROGRESS)
+  dropReason       String?
+  lossReason       String?
+  followups        NegotiationFollowup[]
+  organization     Organization        @relation(fields: [id], references: [organizationId])
+}
+
+enum NegotiationStatus {
+  IN_PROGRESS
+  MOVED_TO_NEXT
+  DROPPED
+  HOLD
+}
+
+model NegotiationFollowup {
+  id             String      @id @map("_id") @db.ObjectId
+  negotiationId  String      @db.ObjectId
+  remark         String
+  followupDate   DateTime
+  negotiation    Negotiation @relation(fields: [negotiationId], references: [id])
 }
 
 model Order {
-  id                   String   @id  @map("_id")  @db.ObjectId
-  projectStatus        String   
-  finalOrderValue      Float?   
-  finalBusinessValue   String? 
-  totalHardwareSites   Int?     
-  avgHardwareValue     Float?  
-  totalHardwareValue   Float?  
-  lossReason           String? 
-  organization Organization @relation(fields: [id], references: [organizationId])  
+  id                 String       @id @map("_id") @db.ObjectId
+  stageEntryDate     DateTime     @default(now())  // When moved to this stage
+  projectStatus      String
+  finalOrderValue    Float?
+  finalBusinessValue String?
+  totalHardwareSites Int?
+  avgHardwareValue   Float?
+  totalHardwareValue Float?
+  lossReason         String?
+  organization       Organization @relation(fields: [id], references: [organizationId])
 }

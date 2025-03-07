@@ -46,13 +46,7 @@
           <Home class="h-5 w-5 text-gray-600" />
           <span class="text-gray-700">Dashboard</span>
         </button>
-        <button 
-          on:click={() => navigateTo('/calendar')}
-          class="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-gray-200 transition-colors"
-        >
-          <Calendar class="h-5 w-5 text-gray-600" />
-          <span class="text-gray-700">Calendar</span>
-        </button>
+
       </div>
       <div class="flex items-center">
         <div class="relative user-menu">

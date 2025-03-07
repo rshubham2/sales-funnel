@@ -43,7 +43,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
       // Protect admin routes
       if (event.url.pathname.startsWith('/admin') && user.role.name !== 'ADMIN') {
-        throw redirect(303, '/');
+        throw redirect(303, '/dashboard');
       }
 
       // Protect sales pipeline routes

@@ -6,28 +6,40 @@ import { fail } from '@sveltejs/kit';
 export const actions = {
   manualImport: async ({ request }) => {
     const data = await request.formData();
-
-    // Extract organization data
+    
+    // Extract form data
     const organizationName = data.get('organizationName')?.toString();
     const organizationAddress = data.get('organizationAddress')?.toString();
     const organizationWebsite = data.get('organizationWebsite')?.toString();
-
-    // Extract contact data
     const contactName = data.get('contactName')?.toString();
     const contactDesignation = data.get('contactDesignation')?.toString();
     const contactMobile = data.get('contactMobile')?.toString();
     const contactDepartment = data.get('contactDepartment')?.toString();
     const contactEmail = data.get('contactEmail')?.toString();
 
-    // Validate required fields
     if (!organizationName || !organizationAddress || 
         !contactName || !contactDesignation || 
         !contactMobile || !contactDepartment || !contactEmail) {
-      return fail(400, { message: 'All fields are required' });
+      return fail(400, { message: 'All required fields must be filled' });
     }
 
     try {
-      // Create organization with contact
+      // Check for duplicate organization
+      const existingOrg = await prisma.organization.findFirst({
+        where: {
+          AND: [
+            { name: organizationName },
+            { address: organizationAddress }
+          ]
+        }
+      });
+
+      if (existingOrg) {
+        return fail(400, { 
+          message: 'An organization with this name and address already exists' 
+        });
+      }
+
       const organization = await prisma.organization.create({
         data: {
           name: organizationName,
@@ -45,12 +57,13 @@ export const actions = {
         }
       });
 
-      return { success: true, organizationId: organization.organizationId };
+      return { success: true, organizationId: organization.id };
     } catch (error) {
       console.error('Error importing prospect:', error);
       return fail(500, { message: 'Failed to import prospect' });
     }
   },
+
   bulkImport: async ({ request }) => {
     const data = await request.formData();
     const prospectData = data.get('prospects')?.toString();
@@ -60,48 +73,66 @@ export const actions = {
     }
 
     try {
-      // Parse the prospect data
       const prospects = JSON.parse(prospectData);
-
-      // Validate input
+      
       if (!Array.isArray(prospects) || prospects.length === 0) {
         return fail(400, { message: 'Invalid prospect data' });
       }
 
-      // Perform bulk import
-      const importResults = await Promise.all(
-        prospects.map(async (prospect) => {
-          try {
-            return await prisma.organization.create({
-              data: {
-                name: prospect.organizationName,
-                address: prospect.organizationAddress,
-                website: prospect.organizationWebsite || '',
-                contacts: {
-                  create: {
-                    name: prospect.contactName,
-                    designation: prospect.contactDesignation,
-                    mobile: prospect.contactMobile,
-                    department: prospect.contactDepartment,
-                    email: prospect.contactEmail
-                  }
+      const results = {
+        success: [] as any[],
+        duplicates: [] as string[],
+        errors: [] as string[]
+      };
+
+      for (const prospect of prospects) {
+        try {
+          // Check for duplicate
+          const existingOrg = await prisma.organization.findFirst({
+            where: {
+              AND: [
+                { name: prospect.organizationName },
+                { address: prospect.organizationAddress }
+              ]
+            }
+          });
+
+          if (existingOrg) {
+            results.duplicates.push(prospect.organizationName);
+            continue;
+          }
+
+          const org = await prisma.organization.create({
+            data: {
+              name: prospect.organizationName,
+              address: prospect.organizationAddress,
+              website: prospect.organizationWebsite || '',
+              contacts: {
+                create: {
+                  name: prospect.contactName,
+                  designation: prospect.contactDesignation,
+                  mobile: prospect.contactMobile,
+                  department: prospect.contactDepartment,
+                  email: prospect.contactEmail
                 }
               }
-            });
-          } catch (error) {
-            console.error(`Failed to import prospect: ${prospect.organizationName}`, error);
-            return null;
-          }
-        })
-      );
+            }
+          });
 
-      // Filter out failed imports
-      const successfulImports = importResults.filter(result => result !== null);
+          results.success.push(org);
+        } catch (error) {
+          results.errors.push(prospect.organizationName);
+        }
+      }
 
-      return { 
-        success: true, 
-        importedCount: successfulImports.length,
-        totalAttempted: prospects.length
+      return {
+        success: true,
+        results: {
+          imported: results.success.length,
+          duplicates: results.duplicates.length,
+          errors: results.errors.length,
+          total: prospects.length
+        }
       };
     } catch (error) {
       console.error('Bulk import error:', error);

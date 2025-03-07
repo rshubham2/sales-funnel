@@ -2,9 +2,10 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/database';
+import { SalesStage } from '@prisma/client';
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
-    // Check if user is authenticated
+    // Authentication check remains the same
     if (!locals.user) {
         return new Response('Unauthorized', { status: 401 });
     }
@@ -15,7 +16,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
         // Verify the organization exists
         const organization = await db.organization.findUnique({
             where: { organizationId: params.organizationId },
-            select: { assignedToId: true }
+            select: { assignedToId: true, salesStage: true }
         });
 
         if (!organization) {
@@ -27,13 +28,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
             return new Response('Organization is already assigned', { status: 400 });
         }
 
-        // Update the organization with the new assignment
+        // Update the organization with the new assignment - explicitly use the enum type
         const updatedOrganization = await db.organization.update({
             where: { organizationId: params.organizationId },
             data: {
+                salesStage: SalesStage.LEAD,
                 assignedToId: userId,
-                salesStage: 'LEAD', // Update the stage when assigned
-                salesFunnelStage: 'LEAD' // Update the funnel stage when assigned
+                
             },
             include: {
                 assignedTo: {
@@ -45,6 +46,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
             }
         });
 
+        console.log("Updated organization:", updatedOrganization); // Add logging to verify
+
         return json({
             success: true,
             organization: updatedOrganization
@@ -52,7 +55,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
     } catch (error) {
         console.error('Error assigning organization:', error);
-        return new Response('Internal Server Error', { status: 500 });
+        return new Response(`Internal Server Error: ${error.message}`, { status: 500 });
     }
 };
 

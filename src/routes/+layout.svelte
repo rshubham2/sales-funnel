@@ -4,6 +4,7 @@
   import Sidebar from '$lib/components/Sidebar.svelte';
   import Footer from '$lib/components/Footer.svelte';
   import Loader from '$lib/components/Load.svelte';
+  import 'funnel-graph-js/dist/css/main.min.css';
   import Header2 from '$lib/components/Header2.svelte';
   import '../app.css';
   import Sidebar2 from '$lib/components/Sidebar2.svelte';
@@ -11,6 +12,7 @@
   import { page } from '$app/stores';
   import { navigating } from '$app/stores';
   import '../app.css';
+  import ToastContainer from '$lib/components/ui/toast/ToastContainer.svelte';
 
   let isMinimized = false;
 </script>
@@ -45,7 +47,9 @@
     
         <Header2 />
     <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-4">
+      <ToastContainer />
       <slot />
+      
     </main>
     
     <Footer2 />

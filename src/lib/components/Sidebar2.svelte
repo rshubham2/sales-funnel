@@ -17,7 +17,7 @@
       icon: User,
       requiresAdmin: true,
       items: [
-        { label: 'Dashboard', href: '/admin' },
+        { label: 'Dashboard', href: '/admin/dashboard' },
         { label: 'Users', href: '/admin/users' },
         { label: 'Import Data', href: '/admin/import' },
       ]
@@ -27,7 +27,10 @@
       icon: BarChart2,
       requiresAdmin: false,
       items: [
+        { label: 'Dashboard', href: '/sales/dashboard' },
+        { label: 'Assignments', href: '/sales/assign' },
         { label: 'Organizations', href: '/sales/organizations' },
+
       ]
     }
   ];
