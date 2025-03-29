@@ -1,815 +1,352 @@
-
-<!-- src/routes/(protected)/sales/dashboard/+page.svelte -->
+<!-- src/routes/sales/dashboard/+page.svelte -->
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import Chart from 'chart.js/auto';
-  import type { ChartConfiguration } from 'chart.js';
+  import type { PageData } from './$types';
+  import { formatDistanceToNow, format, isPast, isToday } from 'date-fns';
+  import { ChevronDown, Calendar, Clock, AlertCircle, CheckCircle, User, Tag, ChevronUp, ChevronRight } from 'lucide-svelte';
   
-  export let data;
-  let pipelineChart: Chart;
-  let performanceChart: Chart;
-  let revenueChart: Chart;
+  export let data: PageData;
   
-  // Refined color palette with softer, professional colors
-  const chartTheme = {
-    fonts: {
-      base: 'Inter, system-ui, sans-serif'
-    },
-    colors: {
-      primary: '#4f76b9',
-      success: '#3d8f78',
-      warning: '#c39351',
-      danger: '#b5565d',
-      purple: '#8c7aa9',
-      teal: '#5b9b98',
-      gray: '#828a98'
-    }
+  // Stage colors for visual indicators
+  const stageColors = {
+    PROSPECT: 'bg-blue-100 text-blue-800',
+    LEAD: 'bg-blue-200 text-blue-800',
+    QUALIFICATION: 'bg-purple-100 text-purple-800',
+    PRESENTATION: 'bg-indigo-100 text-indigo-800',
+    POC: 'bg-pink-100 text-pink-800',
+    PROPOSAL: 'bg-orange-100 text-orange-800',
+    NEGOTIATION: 'bg-yellow-100 text-yellow-800',
+    ORDER: 'bg-green-100 text-green-800',
+    CLOSED_WON: 'bg-emerald-100 text-emerald-800',
+    CLOSED_LOST: 'bg-red-100 text-red-800'
   };
-
-  // Types for performance data
-  interface PerformanceData {
-    month: string;
-    dealsCount: number;
-    revenueValue?: number;  // Making revenue optional
+  
+  // Priority colors
+  const priorityColors = {
+    HIGH: 'bg-red-500',
+    MEDIUM: 'bg-yellow-500',
+    LOW: 'bg-blue-500'
+  };
+  
+  // Format dates for display
+  function formatDate(date: Date | null | undefined): string {
+    if (!date) return 'Not set';
+    return format(date, 'MMM d, yyyy');
   }
-
-  interface DashboardData {
-    user: { username: string };
-    stageDistribution: Record<string, number>;
-    monthlyPerformance: PerformanceData[];
-    pipelineValue: number;
-    totalOrganizations: number;
-    pocMetrics?: {
-      avgMRR: number;
-      totalBusinessSites: number;
-      avgHardwareValue: number;
-    };
-    recentActivities: Array<{
-      organizationName: string;
-      stage: string;
-      lastActivity: string;
-      nextFollowup: string;
-      lastActivityDate?: string;
-      category?: string;
-      isActive?: boolean;
-    }>;
-    activePOCs: number;
-    pendingFollowups: number;
+  
+  function getFollowUpStatus(date: Date | null | undefined): string {
+    if (!date) return 'bg-gray-100 text-gray-800';
+    if (isPast(date) && !isToday(date)) return 'bg-red-100 text-red-800';
+    if (isToday(date)) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-green-100 text-green-800';
   }
-
-  function getGreeting(username: string) {
-    const hour = new Date().getHours();
-    let greeting = '';
-    
-    if (hour < 12) {
-      greeting = 'Good Morning';
-    } else if (hour < 17) {
-      greeting = 'Good Afternoon';
-    } else {
-      greeting = 'Good Evening';
-    }
-    
-    return `${greeting}, ${username}`;
+  
+  function getFollowUpText(date: Date | null | undefined): string {
+    if (!date) return 'No follow-up scheduled';
+    if (isPast(date) && !isToday(date)) return `Overdue by ${formatDistanceToNow(date)}`;
+    if (isToday(date)) return 'Due today';
+    return `In ${formatDistanceToNow(date)}`;
   }
-
-  const formatAmount = (amount: number | null | undefined, compact = false) => {
-    if (amount == null) return '₹0';
+  
+  // Dashboard metrics
+  $: totalOrgs = data.organizations.length;
+  $: highPriorityCount = data.organizations.filter(org => org.priority === 'HIGH').length;
+  $: overdueFollowUps = data.organizations.filter(org => 
+    org.nextFollowUpDate && isPast(org.nextFollowUpDate) && !isToday(org.nextFollowUpDate)
+  ).length;
+  $: todayFollowUps = data.organizations.filter(org => 
+    org.nextFollowUpDate && isToday(org.nextFollowUpDate)
+  ).length;
+  
+  // Group by sales stage for the pipeline view
+  $: stageCounts = data.organizations.reduce((acc, org) => {
+    acc[org.salesStage] = (acc[org.salesStage] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  // Filter states
+  let showFilters = false;
+  let priorityFilter = 'all';
+  let stageFilter = 'all';
+  let searchQuery = '';
+  
+  // Filtered organizations
+  $: filteredOrganizations = data.organizations.filter(org => {
+    const matchesPriority = priorityFilter === 'all' || org.priority === priorityFilter;
+    const matchesStage = stageFilter === 'all' || org.salesStage === stageFilter;
+    const matchesSearch = searchQuery === '' || 
+      org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (org.lastActivityNote && org.lastActivityNote.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (org.tags && org.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
     
-    try {
-      return new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR',
-        notation: compact ? 'compact' : 'standard',
-        maximumFractionDigits: 0
-      }).format(amount);
-    } catch (error) {
-      console.error('Error formatting amount:', error);
-      return '₹0';
-    }
-  };
-
-  const calculateGrowth = (current: number, previous: number): number => {
-    if (!previous) return 0;
-    return ((current - previous) / previous) * 100;
-  };
-
-  const formatDate = (date: string | Date): string => {
-    return new Date(date).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
-
-  onMount(() => {
-    if (!data) return;
-    initPipelineChart();
-    initPerformanceChart();
-    initRevenueChart();
+    return matchesPriority && matchesStage && matchesSearch;
   });
-
-  function initPipelineChart() {
-    const ctx = document.getElementById('pipelineChart') as HTMLCanvasElement;
-    if (ctx && data.stageDistribution) {
-      if (pipelineChart) pipelineChart.destroy();
-      
-      const config: ChartConfiguration = {
-        type: 'doughnut',
-        data: {
-          labels: Object.keys(data.stageDistribution).map(stage => 
-            stage.split('_').map(word => 
-              word.charAt(0) + word.slice(1).toLowerCase()
-            ).join(' ')
-          ),
-          datasets: [{
-            data: Object.values(data.stageDistribution),
-            backgroundColor: [
-              '#e2e8f4',
-              '#dae5e8',
-              '#e8e6df',
-              '#e5e1eb',
-              '#dfe8e7',
-              '#e8e2e2'
-            ],
-            borderWidth: 1,
-            borderColor: '#ffffff'
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'right',
-              labels: {
-                font: {
-                  family: chartTheme.fonts.base,
-                  size: 12
-                },
-                padding: 20
-              }
-            }
-          }
-        }
-      };
-      
-      pipelineChart = new Chart(ctx, config);
-    }
-  }
-
-  function initPerformanceChart() {
-    const ctx = document.getElementById('performanceChart') as HTMLCanvasElement;
-    if (ctx && data.monthlyPerformance) {
-      if (performanceChart) performanceChart.destroy();
-      
-      const config: ChartConfiguration = {
-        type: 'bar',
-        data: {
-          labels: data.monthlyPerformance.map(d => d.month),
-          datasets: [{
-            label: 'Deals Closed',
-            data: data.monthlyPerformance.map(d => d.dealsCount),
-            backgroundColor: '#e2e8f4',
-            borderRadius: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              display: false
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              grid: {
-                display: true,
-                color: '#f1f5f9'
-              }
-            },
-            x: {
-              grid: {
-                display: false
-              }
-            }
-          }
-        }
-      };
-      
-      performanceChart = new Chart(ctx, config);
-    }
-  }
-
-  function initRevenueChart() {
-    const ctx = document.getElementById('revenueChart') as HTMLCanvasElement;
-    if (!ctx || !data.monthlyPerformance) return;
-    
-    if (revenueChart) revenueChart.destroy();
-    
-    const config: ChartConfiguration = {
-      type: 'line',
-      data: {
-        labels: data.monthlyPerformance.map(d => d.month),
-        datasets: [{
-          label: 'Revenue Trend',
-          data: data.monthlyPerformance.map(d => d.dealsCount || 0),
-          borderColor: '#4f76b9',
-          backgroundColor: 'rgba(79, 118, 185, 0.1)',
-          fill: true,
-          tension: 0.4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            grid: {
-              display: true,
-              color: '#f1f5f9'
-            }
-          }
-        }
-      }
-    };
-    
-    revenueChart = new Chart(ctx, config);
-  }
-
-  // Calculate quick stats
-  $: quickStats = {
-    avgDealSize: data?.pipelineValue ? data.pipelineValue / data.totalOrganizations : 0,
-    conversionRate: data?.totalOrganizations ? 
-      (data.monthlyPerformance?.reduce((acc, curr) => acc + curr.dealsCount, 0) / data.totalOrganizations) * 100 : 0,
-    activeDeals: data?.totalOrganizations - (data?.stageDistribution?.CLOSED_LOST || 0)
-  };
 </script>
 
-<div class="dashboard">
-  <header class="dashboard-header">
-    <div class="greeting-section">
-      <h1>{getGreeting(data?.user?.username || 'User')}</h1>
-      <p class="subtitle">Sales Performance Overview</p>
+<div class="p-6 max-w-7xl mx-auto">
+  <h1 class="text-3xl font-bold mb-8">Sales Dashboard</h1>
+  
+  <!-- Dashboard Overview Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <!-- Total Accounts -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <div class="flex justify-between items-center">
+        <div>
+          <p class="text-gray-500 text-sm">Total Accounts</p>
+          <p class="text-2xl font-bold">{totalOrgs}</p>
+        </div>
+        <div class="rounded-full bg-blue-100 p-3">
+          <User class="text-blue-600 h-6 w-6" />
+        </div>
+      </div>
     </div>
     
-    <div class="header-actions">
-      <div class="date-filter">
-        <select class="select-input">
-          <option value="today">Today</option>
-          <option value="week">This Week</option>
-          <option value="month">This Month</option>
-          <option value="quarter">This Quarter</option>
-          <option value="year">This Year</option>
-        </select>
+    <!-- High Priority Accounts -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <div class="flex justify-between items-center">
+        <div>
+          <p class="text-gray-500 text-sm">High Priority</p>
+          <p class="text-2xl font-bold">{highPriorityCount}</p>
+        </div>
+        <div class="rounded-full bg-red-100 p-3">
+          <AlertCircle class="text-red-600 h-6 w-6" />
+        </div>
+      </div>
+    </div>
+    
+    <!-- Overdue Follow-ups -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <div class="flex justify-between items-center">
+        <div>
+          <p class="text-gray-500 text-sm">Overdue Follow-ups</p>
+          <p class="text-2xl font-bold">{overdueFollowUps}</p>
+        </div>
+        <div class="rounded-full bg-orange-100 p-3">
+          <Clock class="text-orange-600 h-6 w-6" />
+        </div>
+      </div>
+    </div>
+    
+    <!-- Today's Follow-ups -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <div class="flex justify-between items-center">
+        <div>
+          <p class="text-gray-500 text-sm">Today's Follow-ups</p>
+          <p class="text-2xl font-bold">{todayFollowUps}</p>
+        </div>
+        <div class="rounded-full bg-green-100 p-3">
+          <Calendar class="text-green-600 h-6 w-6" />
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Sales Pipeline -->
+  <div class="bg-white rounded-lg shadow p-6 mb-8">
+    <h2 class="text-xl font-bold mb-4">Sales Pipeline</h2>
+    <div class="flex flex-wrap gap-2">
+      {#each Object.entries(stageCounts) as [stage, count]}
+        <div class="flex items-center">
+          <div class={`h-8 flex items-center px-3 rounded-md ${stageColors[stage] || 'bg-gray-100'}`}>
+            <span class="text-sm font-medium">{stage}: {count}</span>
+          </div>
+          {#if stage !== 'CLOSED_LOST' && stage !== 'CLOSED_WON'}
+            <ChevronRight class="text-gray-400 h-4 w-4" />
+          {/if}
+        </div>
+      {/each}
+    </div>
+  </div>
+  
+  <!-- Organization List Section -->
+  <div class="bg-white rounded-lg shadow mb-8">
+    <div class="border-b p-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 class="text-xl font-bold">Your Accounts</h2>
+        
+        <div class="flex flex-wrap gap-2">
+          <!-- Search input -->
+          <div class="relative flex-grow">
+            <input 
+              type="text" 
+              bind:value={searchQuery}
+              placeholder="Search..." 
+              class="border rounded-md px-3 py-2 text-sm w-full"
+            />
+          </div>
+          
+          <!-- Filter toggle -->
+          <button 
+            on:click={() => showFilters = !showFilters}
+            class="border rounded-md px-3 py-2 text-sm flex items-center gap-1 bg-gray-50 hover:bg-gray-100"
+          >
+            Filter
+            {#if showFilters}
+              <ChevronUp class="h-4 w-4" />
+            {:else}
+              <ChevronDown class="h-4 w-4" />
+            {/if}
+          </button>
+        </div>
       </div>
       
-      <button class="refresh-btn">
-        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        Refresh
-      </button>
+      <!-- Filters row -->
+      {#if showFilters}
+        <div class="mt-4 pt-4 border-t flex flex-wrap gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+            <select 
+              bind:value={priorityFilter}
+              class="border rounded-md px-3 py-2 text-sm"
+            >
+              <option value="all">All Priorities</option>
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Sales Stage</label>
+            <select 
+              bind:value={stageFilter}
+              class="border rounded-md px-3 py-2 text-sm"
+            >
+              <option value="all">All Stages</option>
+              <option value="PROSPECT">Prospect</option>
+              <option value="LEAD">Lead</option>
+              <option value="QUALIFICATION">Qualification</option>
+              <option value="PRESENTATION">Presentation</option>
+              <option value="POC">POC</option>
+              <option value="PROPOSAL">Proposal</option>
+              <option value="NEGOTIATION">Negotiation</option>
+              <option value="ORDER">Order</option>
+              <option value="CLOSED_WON">Closed Won</option>
+              <option value="CLOSED_LOST">Closed Lost</option>
+            </select>
+          </div>
+        </div>
+      {/if}
     </div>
-  </header>
-
-  <!-- Quick Stats Row -->
-  <div class="quick-stats">
-    <div class="stat-card highlight">
-      <div class="stat-icon">💰</div>
-      <div class="stat-content">
-        <h3>Pipeline Value</h3>
-        <p class="stat-value">{formatAmount(data?.pipelineValue, true)}</p>
-        
-      </div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-icon">🎯</div>
-      <div class="stat-content">
-        <h3>Active POCs</h3>
-        <p class="stat-value">{data?.activePOCs || 0}</p>
-        <p class="stat-trend">Current Phase</p>
-      </div>
-    </div>
-
-    <div class="stat-card">
-      <div class="stat-icon">📈</div>
-      <div class="stat-content">
-        <h3>Avg Deal Size</h3>
-        <p class="stat-value">{formatAmount(quickStats.avgDealSize, true)}</p>
-        <p class="stat-trend neutral">= Stable</p>
-      </div>
-    </div>
-
-    <div class="stat-card warning">
-      <div class="stat-icon">⏰</div>
-      <div class="stat-content">
-        <h3>Pending Follow-ups</h3>
-        <p class="stat-value">{data?.pendingFollowups || 0}</p>
-        <p class="stat-trend negative">Requires Attention</p>
-      </div>
+    
+    <!-- Organizations table -->
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Organization</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stage</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Contact</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Follow-up</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Activity</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {#if filteredOrganizations.length === 0}
+            <tr>
+              <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+                No organizations match your filters
+              </td>
+            </tr>
+          {:else}
+            {#each filteredOrganizations as org}
+              <tr class="hover:bg-gray-50 cursor-pointer">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="flex flex-col">
+                    <span class="text-sm font-medium text-gray-900">{org.name}</span>
+                    {#if org.tags && org.tags.length > 0}
+                      <div class="mt-1 flex flex-wrap gap-1">
+                        {#each org.tags as tag}
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                            {tag}
+                          </span>
+                        {/each}
+                      </div>
+                    {/if}
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${stageColors[org.salesStage] || 'bg-gray-100'}`}>
+                    {org.salesStage}
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="flex items-center">
+                    <div class={`h-2.5 w-2.5 rounded-full mr-2 ${priorityColors[org.priority] || 'bg-gray-300'}`}></div>
+                    <span class="text-sm text-gray-900">{org.priority}</span>
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {formatDate(org.lastContactDate)}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="flex flex-col">
+                    <span class="text-sm text-gray-900">{formatDate(org.nextFollowUpDate)}</span>
+                    <span class={`text-xs mt-1 px-2 py-0.5 rounded ${getFollowUpStatus(org.nextFollowUpDate)}`}>
+                      {getFollowUpText(org.nextFollowUpDate)}
+                    </span>
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  {#if org.lastActivityNote}
+                    <div class="flex flex-col">
+                      <span class="text-sm text-gray-900">{org.lastActivityNote}</span>
+                      {#if org.lastActivityType}
+                        <span class="text-xs text-gray-500">{org.lastActivityType}</span>
+                      {/if}
+                    </div>
+                  {:else}
+                    <span class="text-sm text-gray-500">No recent activity</span>
+                  {/if}
+                </td>
+              </tr>
+            {/each}
+          {/if}
+        </tbody>
+      </table>
     </div>
   </div>
-
-  <!-- POC Metrics Section -->
-  {#if data?.pocMetrics}
-    <div class="poc-metrics">
-      <h3>POC Performance Metrics</h3>
-      <div class="metrics-grid">
-        <div class="metric-item">
-          <span class="metric-label">Average MRR</span>
-          <span class="metric-value">{formatAmount(data.pocMetrics.avgMRR)}</span>
-        </div>
-        <div class="metric-item">
-          <span class="metric-label">Business Sites</span>
-          <span class="metric-value">{data.pocMetrics.totalBusinessSites}</span>
-        </div>
-        <div class="metric-item">
-          <span class="metric-label">Avg Hardware Value</span>
-          <span class="metric-value">{formatAmount(data.pocMetrics.avgHardwareValue)}</span>
-        </div>
-        <div class="metric-item">
-          <span class="metric-label">Conversion Rate</span>
-          <span class="metric-value">{quickStats.conversionRate.toFixed(1)}%</span>
-        </div>
-      </div>
-    </div>
-  {/if}
-
-  <!-- Charts Grid -->
-  <div class="charts-grid">
-    <div class="chart-card">
-      <div class="chart-header">
-        <h3>Sales Pipeline Distribution</h3>
-        <div class="chart-actions">
-          <button class="chart-action-btn">
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" 
-                    stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="chart-container">
-        <canvas id="pipelineChart"></canvas>
-      </div>
-    </div>
-
-    <div class="chart-card">
-      <div class="chart-header">
-        <h3>Monthly Performance</h3>
-        <div class="chart-actions">
-          <button class="chart-action-btn">
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" 
-                    stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="chart-container">
-        <canvas id="performanceChart"></canvas>
-      </div>
-    </div>
-
-    <div class="chart-card">
-      <div class="chart-header">
-        <h3>Revenue Trend</h3>
-        <div class="chart-actions">
-          <button class="chart-action-btn">
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" 
-                    stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="chart-container">
-        <canvas id="revenueChart"></canvas>
-      </div>
+  
+  <!-- Action Items Section -->
+  <div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-xl font-bold mb-4">Upcoming Follow-ups</h2>
+    
+    <div class="space-y-4">
+      {#if filteredOrganizations.filter(org => org.nextFollowUpDate).length === 0}
+        <p class="text-gray-500 text-center py-4">No upcoming follow-ups</p>
+      {:else}
+        {#each filteredOrganizations
+          .filter(org => org.nextFollowUpDate)
+          .sort((a, b) => {
+            if (!a.nextFollowUpDate) return 1;
+            if (!b.nextFollowUpDate) return -1;
+            return new Date(a.nextFollowUpDate).getTime() - new Date(b.nextFollowUpDate).getTime();
+          })
+          .slice(0, 5) as org}
+          <div class="border rounded-lg p-4 flex justify-between items-center">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${stageColors[org.salesStage] || 'bg-gray-100'}`}>
+                  {org.salesStage}
+                </span>
+                <h3 class="text-lg font-semibold">{org.name}</h3>
+              </div>
+              <p class="text-gray-600 text-sm mt-1">
+                {org.lastActivityNote || 'No recent activity'} 
+                {#if org.lastActivityType}
+                  <span class="text-gray-500">({org.lastActivityType})</span>
+                {/if}
+              </p>
+            </div>
+            <div class="text-right">
+              <div class={`mb-1 text-sm font-medium ${getFollowUpStatus(org.nextFollowUpDate)}`}>
+                {getFollowUpText(org.nextFollowUpDate)}
+              </div>
+              <div class="text-xs text-gray-500">{formatDate(org.nextFollowUpDate)}</div>
+            </div>
+          </div>
+        {/each}
+      {/if}
     </div>
   </div>
-
 </div>
-
-<style>
-  .dashboard {
-    padding: 2rem;
-    background-color: #fafbfc;
-    min-height: 100vh;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  }
-
-  .dashboard-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-  }
-
-  .greeting-section h1 {
-    font-size: 1.75rem;
-    font-weight: 600;
-    color: #2c3545;
-    margin-bottom: 0.5rem;
-  }
-
-  .subtitle {
-    color: #6b7280;
-    font-size: 0.875rem;
-  }
-
-  .stat-card {
-    background-color: #ffffff;
-    padding: 1.5rem;
-    border-radius: 0.75rem;
-    border: 1px solid #e5e9ef;
-    transition: transform 0.2s;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  }
-
-  .stat-card.highlight {
-    background-color: #f8fafc;
-    border-left: 4px solid #4f76b9;
-  }
-
-  .stat-card.warning {
-    border-left: 4px solid #c39351;
-  }
-
-  .stat-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #2c3545;
-    margin-bottom: 0.25rem;
-  }
-
-  .stage-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 1rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-  }
-
-  .stage-badge.prospect { background-color: #f1f5f9; color: #4f76b9; }
-  .stage-badge.poc { background-color: #f7f3ea; color: #c39351; }
-  .stage-badge.closed_won { background-color: #eef3f1; color: #3d8f78; }
-  .stage-badge.closed_lost { background-color: #f5eced; color: #b5565d; }
-
-  /* Update other color-related styles similarly */
-  .chart-card {
-    background-color: #ffffff;
-    padding: 1.5rem;
-    border-radius: 0.75rem;
-    border: 1px solid #e5e9ef;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  }
-
-  .select-input {
-    padding: 0.5rem 2.5rem 0.5rem 1rem;
-    border: 1px solid #e5e9ef;
-    border-radius: 0.5rem;
-    background-color: white;
-    color: #2c3545;
-    font-size: 0.875rem;
-  }
-
-
-
-
-
-
-
-  .header-actions {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-  }
-
-  .select-input {
-    padding: 0.5rem 2.5rem 0.5rem 1rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    background-color: white;
-    color: #0f172a;
-    font-size: 0.875rem;
-    cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23475569'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.75rem center;
-    background-size: 1rem;
-  }
-
-  .refresh-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background-color: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    color: #475569;
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .refresh-btn:hover {
-    background-color: #f8fafc;
-    border-color: #cbd5e1;
-  }
-
-  .quick-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-  }
-
-
-
-  .stat-card:hover {
-    transform: translateY(-2px);
-  }
-
-
-  .stat-icon {
-    font-size: 1.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .stat-content h3 {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: #64748b;
-    margin-bottom: 0.5rem;
-  }
-
-  .stat-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #0f172a;
-    margin-bottom: 0.25rem;
-  }
-
-  .highlight .stat-value,
-  .highlight .stat-content h3 {
-    color: white;
-  }
-
-  .stat-trend {
-    font-size: 0.75rem;
-    color: #64748b;
-  }
-
-  .stat-trend.positive {
-    color: #059669;
-  }
-
-  .stat-trend.negative {
-    color: #dc2626;
-  }
-
-  .poc-metrics {
-    background-color: white;
-    padding: 1.5rem;
-    border-radius: 1rem;
-    border: 1px solid #e2e8f0;
-    margin-bottom: 2rem;
-  }
-
-  .poc-metrics h3 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #0f172a;
-    margin-bottom: 1rem;
-  }
-
-  .metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-  }
-
-  .metric-item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .metric-label {
-    font-size: 0.875rem;
-    color: #64748b;
-  }
-
-  .metric-value {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #0f172a;
-  }
-
-  .charts-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-  }
-
-  .chart-card {
-    background-color: white;
-    padding: 1.5rem;
-    border-radius: 1rem;
-    border: 1px solid #e2e8f0;
-  }
-
-  .chart-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-  }
-
-  .chart-header h3 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #0f172a;
-  }
-
-  .chart-container {
-    height: 300px;
-    position: relative;
-  }
-
-  .activities-section {
-    background-color: white;
-    padding: 1.5rem;
-    border-radius: 1rem;
-    border: 1px solid #e2e8f0;
-  }
-
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-  }
-
-  .section-header h3 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #0f172a;
-  }
-
-  .view-all-btn {
-    padding: 0.5rem 1rem;
-    background-color: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    color: #475569;
-    font-size: 0.875rem;
-    cursor: pointer;
-  }
-
-  .table-container {
-    overflow-x: auto;
-  }
-
-  table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-  }
-
-  th, td {
-    padding: 1rem;
-    text-align: left;
-    border-bottom: 1px solid #e2e8f0;
-  }
-
-  th {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .org-info {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .org-name {
-    font-weight: 500;
-    color: #0f172a;
-  }
-
-  .org-category {
-    font-size: 0.75rem;
-    color: #64748b;
-  }
-
-  .stage-badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: 1rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-  }
-
-  .stage-badge.prospect { background-color: #dbeafe; color: #1d4ed8; }
-  .stage-badge.poc { background-color: #fef3c7; color: #b45309; }
-  .stage-badge.closed_won { background-color: #dcfce7; color: #15803d; }
-  .stage-badge.closed_lost { background-color: #fee2e2; color: #b91c1c; }
-
-  .activity-info {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .activity-desc {
-    color: #0f172a;
-    margin-bottom: 0.25rem;
-  }
-
-  .activity-date {
-    font-size: 0.75rem;
-    color: #64748b;
-  }
-
-  .followup-info {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .overdue-badge {
-    padding: 0.125rem 0.375rem;
-    background-color: #fee2e2;
-    color: #b91c1c;
-    border-radius: 1rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-  }
-
-  .status-indicator {
-    padding: 0.25rem 0.5rem;
-    border-radius: 1rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    background-color: #f1f5f9;
-    color: #64748b;
-  }
-
-  .status-indicator.active {
-    background-color: #dcfce7;
-    color: #15803d;
-  }
-
-  .actions-cell {
-    text-align: right;
-  }
-
-  .action-btn {
-    padding: 0.375rem;
-    border-radius: 0.375rem;
-    color: #64748b;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .action-btn:hover {
-    background-color: #f1f5f9;
-    color: #0f172a;
-  }
-
-  @media (max-width: 768px) {
-    .dashboard {
-      padding: 1rem;
-    }
-
-    .dashboard-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 1rem;
-    }
-
-    .header-actions {
-      width: 100%;
-      justify-content: space-between;
-    }
-
-    .charts-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-</style>

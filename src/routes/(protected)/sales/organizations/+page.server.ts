@@ -18,5 +18,17 @@ export const load: PageServerLoad = async () => {
     }
   });
 
-  return { organizations };
+  // Get unique values for filter dropdowns
+  const uniqueStages = [...new Set(organizations.map(org => org.salesStage))];
+  const uniquePriorities = [...new Set(organizations.map(org => org.priority))];
+  const uniqueTags = [...new Set(organizations.flatMap(org => org.tags || []))];
+
+  return { 
+    organizations,
+    filterOptions: {
+      stages: uniqueStages,
+      priorities: uniquePriorities,
+      tags: uniqueTags
+    }
+  };
 };

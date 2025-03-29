@@ -2,20 +2,28 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { format } from 'date-fns';
-  import { fade } from 'svelte/transition';
+  import { fade, fly } from 'svelte/transition';
+  import debounce from 'lodash/debounce';
   
   export let data;
   let organizations = data.organizations;
   let searchTerm = '';
   let selectedStageFilter = 'ALL';
   let selectedPriorityFilter = 'ALL';
+  let selectedTagFilter = 'ALL';
   let sortField = 'lastContactDate';
   let sortDirection = 'desc';
+  let isFilterExpanded = false;
   
   // Filters
-  const stageFilters = ['ALL', 'PROSPECT', 'LEAD', 'QUALIFICATION', 'PRESENTATION', 
-                        'POC', 'PROPOSAL', 'NEGOTIATION', 'ORDER', 'CLOSED_WON', 'CLOSED_LOST'];
-  const priorityFilters = ['ALL', 'HIGH', 'MEDIUM', 'LOW'];
+  const stageFilters = ['ALL', ...data.filterOptions.stages];
+  const priorityFilters = ['ALL', ...data.filterOptions.priorities];
+  const tagFilters = ['ALL', ...data.filterOptions.tags];
+  
+  // Debounced search
+  const debouncedSearch = debounce((term) => {
+    searchTerm = term;
+  }, 300);
   
   $: filteredOrganizations = organizations
     .filter(org => {
@@ -31,7 +39,11 @@
       // Priority filter
       const matchesPriority = selectedPriorityFilter === 'ALL' || org.priority === selectedPriorityFilter;
       
-      return matchesSearch && matchesStage && matchesPriority;
+      // Tag filter
+      const matchesTag = selectedTagFilter === 'ALL' || 
+                        (org.tags && org.tags.includes(selectedTagFilter));
+      
+      return matchesSearch && matchesStage && matchesPriority && matchesTag;
     })
     .sort((a, b) => {
       if (sortField === 'lastContactDate' || sortField === 'nextFollowUpDate') {
@@ -134,73 +146,139 @@
     searchTerm = '';
     selectedStageFilter = 'ALL';
     selectedPriorityFilter = 'ALL';
+    selectedTagFilter = 'ALL';
   }
 
-  function showStageFilterChip(stage: string) {
-    return stage !== 'ALL' && stage === selectedStageFilter;
-  }
-
-  function showPriorityFilterChip(priority: string) {
-    return priority !== 'ALL' && priority === selectedPriorityFilter;
+  function toggleFilterPanel() {
+    isFilterExpanded = !isFilterExpanded;
   }
 </script>
 
-<div class="px-4 sm:px-6 lg:px-8 py-6">
-  <div class="sm:flex sm:items-center">
-    <div class="sm:flex-auto">
-      <h1 class="text-2xl font-semibold text-gray-900">Organizations</h1>
-      <p class="mt-2 text-sm text-gray-700">
+<div class="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto">
+  <div class="flex flex-wrap gap-4 items-center justify-between pb-5 border-b border-gray-200">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Organizations</h1>
+      <p class="mt-1 text-sm text-gray-500">
         Track and manage your sales pipeline across {organizations.length} organizations.
       </p>
     </div>
+    
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        on:click={() => goto('/sales/organizations/new')}
+      >
+        <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+        </svg>
+        Add organization
+      </button>
+    </div>
   </div>
 
-  <!-- Integrated search and filter bar -->
+  <!-- Search and Filter Bar -->
   <div class="mt-6 bg-white rounded-lg shadow">
-    <div class="p-4 border-b border-gray-200">
-      <div class="relative flex w-full items-center">
-        <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+    <div class="p-4">
+      <div class="flex flex-col md:flex-row gap-4">
+        <!-- Search Box -->
+        <div class="relative flex-grow">
+          <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+          </div>
+          <input
+            type="search"
+            on:input={(e) => debouncedSearch(e.target.value)}
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 p-2.5"
+            placeholder="Search organizations, websites, or notes..."
+          />
+        </div>
+        
+        <!-- Filter Toggle Button -->
+        <button 
+          class="inline-flex items-center px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          on:click={toggleFilterPanel}
+        >
+          <svg class="w-5 h-5 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
           </svg>
-        </div>
-        <input
-          type="search"
-          bind:value={searchTerm}
-          class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 p-2.5"
-          placeholder="Search organizations, websites, or notes..."
-        />
-        <div class="ml-4 flex items-center gap-2">
-          <!-- Stage Filter Dropdown -->
-          <div class="relative inline-block text-left">
-            <select
-              bind:value={selectedStageFilter}
-              class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5"
-            >
-              <option value="ALL">All Stages</option>
-              {#each stageFilters.filter(f => f !== 'ALL') as stage}
-                <option value={stage}>{stage.replace('_', ' ')}</option>
-              {/each}
-            </select>
-          </div>
-
-          <!-- Priority Filter Dropdown -->
-          <div class="relative inline-block text-left">
-            <select
-              bind:value={selectedPriorityFilter}
-              class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5"
-            >
-              <option value="ALL">All Priorities</option>
-              {#each priorityFilters.filter(f => f !== 'ALL') as priority}
-                <option value={priority}>{priority}</option>
-              {/each}
-            </select>
-          </div>
-        </div>
+          Filters
+          {#if selectedStageFilter !== 'ALL' || selectedPriorityFilter !== 'ALL' || selectedTagFilter !== 'ALL'}
+            <span class="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-semibold text-white bg-indigo-600 rounded-full">
+              {(selectedStageFilter !== 'ALL' ? 1 : 0) + 
+               (selectedPriorityFilter !== 'ALL' ? 1 : 0) + 
+               (selectedTagFilter !== 'ALL' ? 1 : 0)}
+            </span>
+          {/if}
+        </button>
       </div>
-
+      
+      <!-- Advanced Filter Panel -->
+      {#if isFilterExpanded}
+        <div class="mt-4 p-4 bg-gray-50 rounded-lg" transition:fly={{ y: -20, duration: 200 }}>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Stage Filter -->
+            <div>
+              <label for="stage-filter" class="block text-sm font-medium text-gray-700 mb-1">Sales Stage</label>
+              <select
+                id="stage-filter"
+                bind:value={selectedStageFilter}
+                class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5"
+              >
+                <option value="ALL">All Stages</option>
+                {#each stageFilters.filter(f => f !== 'ALL') as stage}
+                  <option value={stage}>{stage.replace('_', ' ')}</option>
+                {/each}
+              </select>
+            </div>
+            
+            <!-- Priority Filter -->
+            <div>
+              <label for="priority-filter" class="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+              <select
+                id="priority-filter"
+                bind:value={selectedPriorityFilter}
+                class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5"
+              >
+                <option value="ALL">All Priorities</option>
+                {#each priorityFilters.filter(f => f !== 'ALL') as priority}
+                  <option value={priority}>{priority}</option>
+                {/each}
+              </select>
+            </div>
+            
+            <!-- Tag Filter -->
+            <div>
+              <label for="tag-filter" class="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+              <select
+                id="tag-filter"
+                bind:value={selectedTagFilter}
+                class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5"
+              >
+                <option value="ALL">All Tags</option>
+                {#each tagFilters.filter(f => f !== 'ALL') as tag}
+                  <option value={tag}>{tag}</option>
+                {/each}
+              </select>
+            </div>
+          </div>
+          
+          <div class="flex justify-end mt-4">
+            <button
+              type="button"
+              class="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+              on:click={clearFilters}
+            >
+              Clear all filters
+            </button>
+          </div>
+        </div>
+      {/if}
+      
       <!-- Active filter chips -->
-      {#if searchTerm || selectedStageFilter !== 'ALL' || selectedPriorityFilter !== 'ALL'}
+      {#if searchTerm || selectedStageFilter !== 'ALL' || selectedPriorityFilter !== 'ALL' || selectedTagFilter !== 'ALL'}
         <div class="flex flex-wrap gap-2 mt-4" transition:fade={{duration: 150}}>
           {#if searchTerm}
             <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
@@ -214,9 +292,9 @@
           {/if}
 
           {#if selectedStageFilter !== 'ALL'}
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-              Stage: {selectedStageFilter.replace('_', ' ')}
-              <button type="button" class="ml-1.5 inline-flex rounded-full hover:bg-blue-200" on:click={() => selectedStageFilter = 'ALL'}>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {getSalesStageClass(selectedStageFilter)}">
+              {selectedStageFilter.replace('_', ' ')}
+              <button type="button" class="ml-1.5 inline-flex rounded-full hover:bg-opacity-75" on:click={() => selectedStageFilter = 'ALL'}>
                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
                 </svg>
@@ -226,7 +304,7 @@
 
           {#if selectedPriorityFilter !== 'ALL'}
             <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {getPriorityClass(selectedPriorityFilter)}">
-              Priority: {selectedPriorityFilter}
+              {selectedPriorityFilter}
               <button type="button" class="ml-1.5 inline-flex rounded-full hover:bg-opacity-75" on:click={() => selectedPriorityFilter = 'ALL'}>
                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
@@ -235,273 +313,206 @@
             </span>
           {/if}
 
-          {#if searchTerm || selectedStageFilter !== 'ALL' || selectedPriorityFilter !== 'ALL'}
-            <button
-              type="button"
-              class="text-sm text-gray-500 hover:text-gray-700 ml-auto"
-              on:click={clearFilters}
-            >
-              Clear all filters
-            </button>
+          {#if selectedTagFilter !== 'ALL'}
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+              Tag: {selectedTagFilter}
+              <button type="button" class="ml-1.5 inline-flex rounded-full hover:bg-gray-200" on:click={() => selectedTagFilter = 'ALL'}>
+                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            </span>
           {/if}
         </div>
       {/if}
     </div>
     
     <!-- Organizations count summary -->
-    <div class="px-4 py-3 bg-gray-50 text-gray-600 text-sm rounded-b-lg">
+    <div class="px-4 py-3 bg-gray-50 text-gray-600 text-sm rounded-b-lg border-t border-gray-200">
       Showing <span class="font-medium">{filteredOrganizations.length}</span> of <span class="font-medium">{organizations.length}</span> organizations
     </div>
   </div>
 
-  <div class="mt-6 flex flex-col">
-    <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-      <div class="inline-block min-w-full py-2 align-middle">
-        <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
-          <table class="min-w-full divide-y divide-gray-300">
-            <thead class="bg-gray-50">
-              <tr>
-                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                  <button 
-                    class="group inline-flex items-center focus:outline-none" 
-                    on:click={() => sort('name')}
-                  >
-                    Organization
-                    <span class="ml-2 flex-none rounded text-gray-400 group-hover:visible group-focus:visible">
-                      {#if sortField === 'name'}
-                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fill-rule="evenodd" d={sortDirection === 'asc' ? "M10 5a.75.75 0 01.75.75v6.638l1.96-2.158a.75.75 0 111.08 1.04l-3.25 3.5a.75.75 0 01-1.08 0l-3.25-3.5a.75.75 0 111.08-1.04l1.96 2.158V5.75A.75.75 0 0110 5z" : "M10 15a.75.75 0 01-.75-.75V7.612L7.29 9.77a.75.75 0 01-1.08-1.04l3.25-3.5a.75.75 0 011.08 0l3.25 3.5a.75.75 0 01-1.08 1.04l-1.96-2.158v6.638A.75.75 0 0110 15z"} clip-rule="evenodd" />
-                        </svg>
-                      {/if}
-                    </span>
-                  </button>
-                </th>
-                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                  <button 
-                    class="group inline-flex items-center focus:outline-none" 
-                    on:click={() => sort('salesStage')}
-                  >
-                    Sales Pipeline
-                    <span class="ml-2 flex-none rounded text-gray-400 group-hover:visible group-focus:visible">
-                      {#if sortField === 'salesStage'}
-                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fill-rule="evenodd" d={sortDirection === 'asc' ? "M10 5a.75.75 0 01.75.75v6.638l1.96-2.158a.75.75 0 111.08 1.04l-3.25 3.5a.75.75 0 01-1.08 0l-3.25-3.5a.75.75 0 111.08-1.04l1.96 2.158V5.75A.75.75 0 0110 5z" : "M10 15a.75.75 0 01-.75-.75V7.612L7.29 9.77a.75.75 0 01-1.08-1.04l3.25-3.5a.75.75 0 011.08 0l3.25 3.5a.75.75 0 01-1.08 1.04l-1.96-2.158v6.638A.75.75 0 0110 15z"} clip-rule="evenodd" />
-                        </svg>
-                      {/if}
-                    </span>
-                  </button>
-                </th>
-                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                  <button 
-                    class="group inline-flex items-center focus:outline-none" 
-                    on:click={() => sort('priority')}
-                  >
-                    Priority
-                    <span class="ml-2 flex-none rounded text-gray-400 group-hover:visible group-focus:visible">
-                      {#if sortField === 'priority'}
-                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fill-rule="evenodd" d={sortDirection === 'asc' ? "M10 5a.75.75 0 01.75.75v6.638l1.96-2.158a.75.75 0 111.08 1.04l-3.25 3.5a.75.75 0 01-1.08 0l-3.25-3.5a.75.75 0 111.08-1.04l1.96 2.158V5.75A.75.75 0 0110 5z" : "M10 15a.75.75 0 01-.75-.75V7.612L7.29 9.77a.75.75 0 01-1.08-1.04l3.25-3.5a.75.75 0 011.08 0l3.25 3.5a.75.75 0 01-1.08 1.04l-1.96-2.158v6.638A.75.75 0 0110 15z"} clip-rule="evenodd" />
-                        </svg>
-                      {/if}
-                    </span>
-                  </button>
-                </th>
-                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Assigned To</th>
-                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                  <button 
-                    class="group inline-flex items-center focus:outline-none" 
-                    on:click={() => sort('lastContactDate')}
-                  >
-                    Last Activity
-                    <span class="ml-2 flex-none rounded text-gray-400 group-hover:visible group-focus:visible">
-                      {#if sortField === 'lastContactDate'}
-                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fill-rule="evenodd" d={sortDirection === 'asc' ? "M10 5a.75.75 0 01.75.75v6.638l1.96-2.158a.75.75 0 111.08 1.04l-3.25 3.5a.75.75 0 01-1.08 0l-3.25-3.5a.75.75 0 111.08-1.04l1.96 2.158V5.75A.75.75 0 0110 5z" : "M10 15a.75.75 0 01-.75-.75V7.612L7.29 9.77a.75.75 0 01-1.08-1.04l3.25-3.5a.75.75 0 011.08 0l3.25 3.5a.75.75 0 01-1.08 1.04l-1.96-2.158v6.638A.75.75 0 0110 15z"} clip-rule="evenodd" />
-                        </svg>
-                      {/if}
-                    </span>
-                  </button>
-                </th>
-                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                  <button 
-                    class="group inline-flex items-center focus:outline-none" 
-                    on:click={() => sort('nextFollowUpDate')}
-                  >
-                    Next Follow-up
-                    <span class="ml-2 flex-none rounded text-gray-400 group-hover:visible group-focus:visible">
-                      {#if sortField === 'nextFollowUpDate'}
-                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fill-rule="evenodd" d={sortDirection === 'asc' ? "M10 5a.75.75 0 01.75.75v6.638l1.96-2.158a.75.75 0 111.08 1.04l-3.25 3.5a.75.75 0 01-1.08 0l-3.25-3.5a.75.75 0 111.08-1.04l1.96 2.158V5.75A.75.75 0 0110 5z" : "M10 15a.75.75 0 01-.75-.75V7.612L7.29 9.77a.75.75 0 01-1.08-1.04l3.25-3.5a.75.75 0 011.08 0l3.25 3.5a.75.75 0 01-1.08 1.04l-1.96-2.158v6.638A.75.75 0 0110 15z"} clip-rule="evenodd" />
-                        </svg>
-                      {/if}
-                    </span>
-                  </button>
-                </th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 bg-white">
-              {#each filteredOrganizations as org}
-                <tr 
-                  class="cursor-pointer hover:bg-gray-50 transition duration-150"
-                  on:click={() => handleRowClick(org.organizationId)}
+  <!-- Organizations Table -->
+  <div class="mt-6">
+    <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg bg-white">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-300">
+          <thead class="bg-gray-50">
+            <tr>
+              <th scope="col" class="px-4 py-3.5 text-left text-sm font-semibold text-gray-900">
+                <button 
+                  class="group inline-flex items-center focus:outline-none" 
+                  on:click={() => sort('name')}
                 >
-                  <td class="px-3 py-4">
-                    <div class="flex flex-col">
-                      <div class="text-sm font-medium text-gray-900">{org.name}</div>
-                      <div class="text-xs text-gray-500 mt-1">
-                        {#if org.website}
-                          <span class="text-indigo-600">
-                            {org.website.replace(/^https?:\/\//i, '')}
-                          </span>
-                        {:else}
-                          <span class="text-gray-400">No website</span>
-                        {/if}
-                      </div>
-                      {#if org.tags && org.tags.length > 0}
-                        <div class="flex flex-wrap gap-1 mt-2">
-                          {#each org.tags.slice(0, 2) as tag}
-                            <span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800">{tag}</span>
-                          {/each}
-                          {#if org.tags.length > 2}
-                            <span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800">+{org.tags.length - 2}</span>
-                          {/if}
-                        </div>
+                  Organization
+                  {#if sortField === 'name'}
+                    <svg class="ml-2 h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d={sortDirection === 'asc' ? "M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" : "M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"} clip-rule="evenodd" />
+                    </svg>
+                  {/if}
+                </button>
+              </th>
+              <th scope="col" class="px-4 py-3.5 text-left text-sm font-semibold text-gray-900">
+                <button 
+                  class="group inline-flex items-center focus:outline-none" 
+                  on:click={() => sort('salesStage')}
+                >
+                  Sales Pipeline
+                  {#if sortField === 'salesStage'}
+                    <svg class="ml-2 h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d={sortDirection === 'asc' ? "M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" : "M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"} clip-rule="evenodd" />
+                    </svg>
+                  {/if}
+                </button>
+              </th>
+              <th scope="col" class="px-4 py-3.5 text-left text-sm font-semibold text-gray-900">
+                <button 
+                  class="group inline-flex items-center focus:outline-none" 
+                  on:click={() => sort('priority')}
+                >
+                  Priority
+                  {#if sortField === 'priority'}
+                    <svg class="ml-2 h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d={sortDirection === 'asc' ? "M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" : "M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"} clip-rule="evenodd" />
+                    </svg>
+                  {/if}
+                </button>
+              </th>
+              <th scope="col" class="px-4 py-3.5 text-left text-sm font-semibold text-gray-900">Assigned To</th>
+              <th scope="col" class="px-4 py-3.5 text-left text-sm font-semibold text-gray-900">
+                <button 
+                  class="group inline-flex items-center focus:outline-none" 
+                  on:click={() => sort('lastContactDate')}
+                >
+                  Last Activity
+                  {#if sortField === 'lastContactDate'}
+                    <svg class="ml-2 h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d={sortDirection === 'asc' ? "M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" : "M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"} clip-rule="evenodd" />
+                    </svg>
+                  {/if}
+                </button>
+              </th>
+              <th scope="col" class="px-4 py-3.5 text-left text-sm font-semibold text-gray-900">
+                <button 
+                  class="group inline-flex items-center focus:outline-none" 
+                  on:click={() => sort('nextFollowUpDate')}
+                >
+                  Next Follow-up
+                  {#if sortField === 'nextFollowUpDate'}
+                    <svg class="ml-2 h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d={sortDirection === 'asc' ? "M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" : "M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"} clip-rule="evenodd" />
+                    </svg>
+                  {/if}
+                </button>
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 bg-white">
+            {#each filteredOrganizations as org}
+              <tr 
+                class="cursor-pointer hover:bg-gray-50 transition duration-150 group"
+                on:click={() => handleRowClick(org.organizationId)}
+              >
+                <td class="px-4 py-4 whitespace-nowrap">
+                  <div class="flex flex-col">
+                    <div class="flex items-center">
+                      <div class="text-sm font-medium text-gray-900 group-hover:text-indigo-600 transition">{org.name}</div>
+                      {#if org.priority === 'HIGH'}
+                        <span class="ml-2 flex-shrink-0 h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden="true"></span>
                       {/if}
                     </div>
-                  </td>
-                  <td class="px-3 py-4">
-                    <div class="flex flex-col space-y-2">
-                      <span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold leading-5 {getSalesStageClass(org.salesStage)}">
-                        {org.salesStage.replace('_', ' ')}
-                      </span>
-                      
-                      <!-- Progress bar -->
-                      <div class="w-full bg-gray-200 rounded-full h-2.5">
-                        <div class="h-2.5 rounded-full" 
-                             style="width: {getSalesStageProgress(org.salesStage)}%; background-color: {org.salesStage === 'CLOSED_LOST' ? '#ef4444' : '#22c55e'}">
-                        </div>
-                      </div>
-                      
-                      {#if org.contacts && org.contacts.length > 0}
-                        <div class="text-xs text-gray-500 mt-1">
-                          {org.contacts.length} contact{org.contacts.length > 1 ? 's' : ''}
-                        </div>
-                      {/if}
-                    </div>
-                  </td>
-                  <td class="px-3 py-4">
-                    <span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold leading-5 {getPriorityClass(org.priority)}">
-                      {org.priority}
-                    </span>
-                  </td>
-                  <td class="px-3 py-4">
-                    {#if org.assignedTo}
-                      <div class="flex items-center">
-                        <div class="h-8 w-8 flex-shrink-0 rounded-full bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-500">
-                          {org.assignedTo.username.charAt(0).toUpperCase()}
-                        </div>
-                        <div class="ml-3">
-                          <div class="text-sm font-medium text-gray-900">{org.assignedTo.username}</div>
-                          <div class="text-xs text-gray-500">{org.assignedTo.email}</div>
-                        </div>
-                      </div>
-                    {:else}
-                      <span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">
-                        Unassigned
-                      </span>
-                    {/if}
-                  </td>
-                  <td class="px-3 py-4">
-                    <div class="flex flex-col">
-                      {#if org.lastContactDate}
-                        <div class="flex items-center">
-                          <div class={`h-2 w-2 rounded-full mr-2 ${getContactUrgency(org) === 'high' ? 'bg-red-500' : getContactUrgency(org) === 'medium' ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
-                          <span class="text-sm text-gray-700">{formatDate(org.lastContactDate)}</span>
-                        </div>
-                        <span class="text-xs text-gray-500 mt-1">{getTimeSince(org.lastContactDate)}</span>
+                    <div class="text-xs text-gray-500 mt-1">
+                      {#if org.website}
+                        <a href="{org.website}" target="_blank" class="text-indigo-600 hover:underline" on:click|stopPropagation>
+                          {org.website.replace(/^https?:\/\//i, '')}
+                        </a>
                       {:else}
-                        <span class="text-sm text-gray-500">No recent contact</span>
-                      {/if}
-                      
-                      {#if org.lastActivityType}
-                        <div class="mt-1 text-xs text-gray-500 flex items-center">
-                          <span class="inline-block w-1.5 h-1.5 rounded-full bg-gray-400 mr-1"></span>
-                          {org.lastActivityType}
-                        </div>
+                        <span class="text-gray-400">No website</span>
                       {/if}
                     </div>
-                  </td>
-                  <td class="px-3 py-4">
-                    {#if org.nextFollowUpDate}
-                      <div class={`text-sm ${isFollowUpDue(org.nextFollowUpDate) ? 'text-red-600 font-medium' : 'text-gray-700'}`}>
-                        {formatDate(org.nextFollowUpDate)}
-                        {#if isFollowUpDue(org.nextFollowUpDate)}
-                          <span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-600">Due</span>
-                        {/if}
+                  </div>
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap">
+                  <div class="flex flex-col space-y-2">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {getSalesStageClass(org.salesStage)}">
+                      {org.salesStage.replace('_', ' ')}
+                    </span>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                      <div class="bg-indigo-600 h-2 rounded-full" style="width: {getSalesStageProgress(org.salesStage)}%"></div>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {getPriorityClass(org.priority)}">
+                    {org.priority}
+                  </span>
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap">
+                  <div class="flex items-center">
+                    {#if org.assignedTo}
+                      <div class="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 font-medium">
+                        {org.assignedTo.username[0].toUpperCase()}
                       </div>
-                      
-                      {#if org.nextFollowUpNote}
-                        <div class="mt-1 text-xs text-gray-500 overflow-hidden text-ellipsis">
-                          "{org.nextFollowUpNote}"
-                        </div>
-                      {/if}
+                      <div class="ml-2 text-sm text-gray-900">{org.assignedTo.username}</div>
                     {:else}
-                      <div class="flex items-center">
-                        <span class="text-sm text-gray-500">Not scheduled</span>
-                      </div>
+                      <span class="text-gray-400">Unassigned</span>
                     {/if}
-                  </td>
-                </tr>
-              {:else}
-                <tr>
-                  <td colspan="6" class="px-3 py-10 text-center text-sm text-gray-500">
-                    <div class="flex flex-col items-center justify-center">
-                      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
-                      <h3 class="mt-2 text-sm font-medium text-gray-900">No organizations found</h3>
-                      <p class="mt-1 text-sm text-gray-500">
-                        {#if searchTerm || selectedStageFilter !== 'ALL' || selectedPriorityFilter !== 'ALL'}
-                          Try adjusting your search or filter criteria.
-                        {:else}
-                          Get started by adding your first organization.
-                        {/if}
-                      </p>
-                      {#if !searchTerm && selectedStageFilter === 'ALL' && selectedPriorityFilter === 'ALL'}
-                        <div class="mt-6">
-                          <button
-                            type="button"
-                            class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                            on:click={() => goto('/sales/organizations/new')}
-                          >
-                            <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                              <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
-                            </svg>
-                            Add organization
-                          </button>
+                  </div>
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap">
+                  <div class="flex flex-col">
+                    {#if org.lastContactDate}
+                      <div class="text-sm text-gray-900">{formatDate(org.lastContactDate)}</div>
+                      <div class="flex items-center mt-1">
+                        <span class="h-2 w-2 rounded-full {getContactUrgency(org) === 'high' ? 'bg-red-400' : getContactUrgency(org) === 'medium' ? 'bg-yellow-400' : 'bg-green-400'} mr-2"></span>
+                        <span class="text-xs text-gray-500">{getTimeSince(org.lastContactDate)}</span>
+                      </div>
+                    {:else}
+                      <span class="text-gray-400">Never contacted</span>
+                    {/if}
+                  </div>
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                  {#if org.nextFollowUpDate}
+                    <div class="flex flex-col">
+                      <div class="{isFollowUpDue(org.nextFollowUpDate) ? 'text-red-600 font-medium' : 'text-gray-900'}">
+                        {formatDate(org.nextFollowUpDate)}
+                      </div>
+                      {#if isFollowUpDue(org.nextFollowUpDate)}
+                        <div class="text-xs text-red-500 mt-1">
+                          Due today
                         </div>
                       {/if}
                     </div>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+                  {:else}
+                    <span class="text-gray-400">Not scheduled</span>
+                  {/if}
+                </td>
+              </tr>
+            {:else}
+              <tr>
+                <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                  <div class="flex flex-col items-center justify-center space-y-3">
+                    <svg class="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    <p class="text-gray-900 font-medium">No organizations found</p>
+                    <p class="text-gray-500">Try adjusting your search or filter criteria</p>
+                    <button
+                      type="button"
+                      class="mt-2 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      on:click={clearFilters}
+                    >
+                      Clear all filters
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
       </div>
     </div>
-  </div>
-  
-  <!-- Add organization floating button -->
-  <div class="fixed bottom-4 right-4">
-    <button
-      type="button"
-      class="inline-flex items-center p-3 border border-transparent rounded-full shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-      on:click={() => goto('/sales/organizations/new')}
-    >
-      <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-      </svg>
-    </button>
   </div>
 </div>

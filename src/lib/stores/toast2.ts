@@ -1,28 +1,46 @@
-// src/lib/stores/toast.ts
+// src/lib/stores/toast2.ts
 import { writable } from 'svelte/store';
 
-export type Toast = {
-  id: number;
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
+
+export interface Toast {
+  id: string;
+  type: ToastType;
   message: string;
-  type: 'success' | 'error';
-};
+  duration?: number;
+}
 
 function createToastStore() {
   const { subscribe, update } = writable<Toast[]>([]);
-  let toastCounter = 0;
+
+  function add(toast: Omit<Toast, 'id'>) {
+    const id = Math.random().toString(36).substring(2, 9);
+    const newToast = { ...toast, id };
+    
+    update(toasts => [...toasts, newToast]);
+    
+    if (toast.duration) {
+      setTimeout(() => {
+        remove(id);
+      }, toast.duration);
+    }
+    
+    return id;
+  }
+
+  function remove(id: string) {
+    update(toasts => toasts.filter(t => t.id !== id));
+  }
+
+  function clear() {
+    update(() => []);
+  }
 
   return {
     subscribe,
-    add: (message: string, type: 'success' | 'error' = 'success') => {
-      const id = toastCounter++;
-      update(toasts => [...toasts, { id, message, type }]);
-      setTimeout(() => {
-        update(toasts => toasts.filter(t => t.id !== id));
-      }, 5000);
-    },
-    remove: (id: number) => {
-      update(toasts => toasts.filter(t => t.id !== id));
-    }
+    add,
+    remove,
+    clear
   };
 }
 

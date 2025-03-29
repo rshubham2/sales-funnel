@@ -219,7 +219,7 @@ enum POCStageStatus {
 }
 
 model POCFollowup {
-  id          String   @id @map("_id") @db.ObjectId
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
   pocId       String   @db.ObjectId
   remark      String
   followupDate DateTime
@@ -262,7 +262,7 @@ enum NegotiationStatus {
 }
 
 model NegotiationFollowup {
-  id             String      @id @map("_id") @db.ObjectId
+  id             String     @id @default(auto()) @map("_id") @db.ObjectId
   negotiationId  String      @db.ObjectId
   remark         String
   followupDate   DateTime

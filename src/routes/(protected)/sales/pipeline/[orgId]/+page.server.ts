@@ -35,7 +35,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
             files: true
           }
         },
-        POC: true,
+        POC: {
+          include:{
+            followups:true,
+          }
+        },
         proposal: true,
         negotiation: true,
         order: true,
